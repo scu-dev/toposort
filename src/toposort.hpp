@@ -171,6 +171,8 @@ namespace Toposort {
 
     struct Schedule {
         array<array<string, 10>, 5> slots;
+
+        [[nodiscard]] explicit Schedule() noexcept = default;
     };
 
     struct CourseSlot {
@@ -202,21 +204,21 @@ namespace Toposort {
         for (u64 i = 0; i < courses.size(); i++) courseMap[courses[i].code] = courses[i];
         for (u64 semesterIdx = 0; semesterIdx < arrangements.size(); semesterIdx++) {
             Schedule schedule;
-            for (auto& day : schedule.slots) day.fill("");
-            const vector<string>& arrangement = arrangements[semesterIdx];
             vector<CourseSlot> courseSlots;
-            for (const string& courseCode : arrangement) {
-                auto it = courseMap.find(courseCode);
+            vector<bool> slotUsed(50, false);
+            for (u64 i = 0; i < arrangements[semesterIdx].size(); i++) {
+                const auto it = courseMap.find(arrangements[semesterIdx][i]);
                 if (it == courseMap.end()) {
-                    setError("无法找到课程代码 " + courseCode + " 对应的课程信息。");
+                    setError("无法找到课程代码 " + arrangements[semesterIdx][i] + " 对应的课程信息。");
                     schedules.clear();
                     return schedules;
                 }
                 const Course& course = it->second;
-                CourseSlot slot;
-                slot.code = course.code;
-                slot.name = course.name;
-                slot.credits = course.credit;
+                CourseSlot slot = {
+                    .code = course.code,
+                    .name = course.name,
+                    .credits = course.credit,
+                };
                 if (course.credit <= 3) {
                     slot.sessionsPerWeek = 1;
                     slot.sessionLengths.push_back(course.credit);
@@ -234,65 +236,61 @@ namespace Toposort {
                     slot.sessionLengths.push_back(third);
                     slot.sessionLengths.push_back(course.credit - 2 * third);
                 }
-                courseSlots.push_back(slot);
+                courseSlots.emplace_back(move(slot));
             }
-            vector<bool> slotUsed(50, false);
-            for (const auto& courseSlot : courseSlots) {
+            for (u64 i = 0; i < courseSlots.size(); i++) {
                 vector<u32> usedDays;
-                for (u32 session = 0; session < courseSlot.sessionsPerWeek; session++) {
-                    u32 length = courseSlot.sessionLengths[session];
-                    u32 day = 5, startSlot = 0;
+                for (u32 session = 0; session < courseSlots[i].sessionsPerWeek; session++) {
+                    u32 length = courseSlots[i].sessionLengths[session], day = 5, startSlot = 0;
                     vector<pair<u32, u32>> candidates;
-                    for (u32 d = 0; d < 5; d++) {
+                    for (u32 day = 0; day < 5; day++) {
                         bool dayUsed = false;
-                        for (u32 used : usedDays) if (used == d || (used > 0 && used - 1 == d) || (used < 4 && used + 1 == d)) {
+                        for (u32 j = 0; j < usedDays.size(); j++) if (usedDays[j] == day || (usedDays[j] > 0 && usedDays[j] - 1 == day) || (usedDays[j] < 4 && usedDays[j] + 1 == day)) {
                             dayUsed = true;
                             break;
                         }
                         if (dayUsed && usedDays.size() > 0) continue;
-                        if (length == 2 && canPlace(slotUsed, d, 0, 2)) candidates.push_back({d, 0});
-                        if (length == 3 && canPlace(slotUsed, d, 2, 3)) candidates.push_back({d, 2});
-                        if (length == 2 && canPlace(slotUsed, d, 5, 2)) candidates.push_back({d, 5});
-                        if (length == 3 && canPlace(slotUsed, d, 7, 3)) candidates.push_back({d, 7});
+                        if (length == 2 && canPlace(slotUsed, day, 0, 2)) candidates.push_back({day, 0});
+                        if (length == 3 && canPlace(slotUsed, day, 2, 3)) candidates.push_back({day, 2});
+                        if (length == 2 && canPlace(slotUsed, day, 5, 2)) candidates.push_back({day, 5});
+                        if (length == 3 && canPlace(slotUsed, day, 7, 3)) candidates.push_back({day, 7});
                         if (length == 1) {
-                            if (canPlace(slotUsed, d, 2, 1)) candidates.push_back({d, 2});
-                            if (canPlace(slotUsed, d, 3, 1)) candidates.push_back({d, 3});
-                            if (canPlace(slotUsed, d, 4, 1)) candidates.push_back({d, 4});
-                            if (canPlace(slotUsed, d, 7, 1)) candidates.push_back({d, 7});
-                            if (canPlace(slotUsed, d, 8, 1)) candidates.push_back({d, 8});
-                            if (canPlace(slotUsed, d, 9, 1)) candidates.push_back({d, 9});
+                            if (canPlace(slotUsed, day, 2, 1)) candidates.push_back({day, 2});
+                            if (canPlace(slotUsed, day, 3, 1)) candidates.push_back({day, 3});
+                            if (canPlace(slotUsed, day, 4, 1)) candidates.push_back({day, 4});
+                            if (canPlace(slotUsed, day, 7, 1)) candidates.push_back({day, 7});
+                            if (canPlace(slotUsed, day, 8, 1)) candidates.push_back({day, 8});
+                            if (canPlace(slotUsed, day, 9, 1)) candidates.push_back({day, 9});
                         }
                         if (candidates.empty()) {
-                            if (length == 2 && canPlace(slotUsed, d, 3, 2)) candidates.push_back({d, 3});
-                            if (length == 2 && canPlace(slotUsed, d, 7, 2)) candidates.push_back({d, 7});
-                            if (length == 3 && canPlace(slotUsed, d, 0, 3)) candidates.push_back({d, 0});
-                            if (length == 3 && canPlace(slotUsed, d, 5, 3)) candidates.push_back({d, 5});
+                            if (length == 2 && canPlace(slotUsed, day, 3, 2)) candidates.push_back({day, 3});
+                            if (length == 2 && canPlace(slotUsed, day, 7, 2)) candidates.push_back({day, 7});
+                            if (length == 3 && canPlace(slotUsed, day, 0, 3)) candidates.push_back({day, 0});
+                            if (length == 3 && canPlace(slotUsed, day, 5, 3)) candidates.push_back({day, 5});
                         }
                     }
                     if (candidates.empty()) {
-                        bool found = false;
-                        for (u32 d = 0; d < 5; d++) {
-                            for (u32 s = 0; s <= 10 - length; s++) if (canPlace(slotUsed, d, s, length)) {
-                                day = d;
-                                startSlot = s;
-                                found = true;
-                                break;
-                            }
-                            if (found) break;
+                        for (u32 j = 0; j < 5; j++) for (u32 s = 0; s <= 10 - length; s++) if (canPlace(slotUsed, j, s, length)) {
+                            day = j;
+                            startSlot = s;
+                            goto found;
                         }
+                        found:;
                     }
                     else {
-                        pair<u32, u32> best = candidates[0];
-                        for (const auto& candidate : candidates) if ((candidate.second != 0 && candidate.second != 7) && (best.second == 0 || best.second == 7)) best = candidate;
-                        day = best.first;
-                        startSlot = best.second;
+                        day = candidates[0].first;
+                        startSlot = candidates[0].second;
+                        for (const auto& [_day, _startSlot] : candidates) if ((_startSlot != 0 && _startSlot != 7) && (startSlot == 0 || startSlot == 7)) {
+                            day = _day;
+                            startSlot = _startSlot;
+                        }
                     }
                     if (day >= 5) {
-                        setError("无法为课程 " + courseSlot.code + " 安排足够的课时。");
+                        setError("无法为课程 " + courseSlots[i].code + " 安排足够的课时。");
                         schedules.clear();
                         return schedules;
                     }
-                    place(schedule, slotUsed, day, startSlot, length, courseSlot.name);
+                    place(schedule, slotUsed, day, startSlot, length, courseSlots[i].name);
                     usedDays.push_back(day);
                 }
             }
