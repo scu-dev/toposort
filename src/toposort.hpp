@@ -243,30 +243,30 @@ namespace Toposort {
                 for (u32 session = 0; session < courseSlots[i].sessionsPerWeek; session++) {
                     u32 length = courseSlots[i].sessionLengths[session], day = 5, startSlot = 0;
                     vector<pair<u32, u32>> candidates;
-                    for (u32 day = 0; day < 5; day++) {
+                    for (u32 _day = 0; _day < 5; _day++) {
                         bool dayUsed = false;
-                        for (u32 j = 0; j < usedDays.size(); j++) if (usedDays[j] == day || (usedDays[j] > 0 && usedDays[j] - 1 == day) || (usedDays[j] < 4 && usedDays[j] + 1 == day)) {
+                        for (u32 j = 0; j < usedDays.size(); j++) if (usedDays[j] == _day || (usedDays[j] > 0 && usedDays[j] - 1 == _day) || (usedDays[j] < 4 && usedDays[j] + 1 == _day)) {
                             dayUsed = true;
                             break;
                         }
                         if (dayUsed && usedDays.size() > 0) continue;
-                        if (length == 2 && canPlace(slotUsed, day, 0, 2)) candidates.push_back({day, 0});
-                        if (length == 3 && canPlace(slotUsed, day, 2, 3)) candidates.push_back({day, 2});
-                        if (length == 2 && canPlace(slotUsed, day, 5, 2)) candidates.push_back({day, 5});
-                        if (length == 3 && canPlace(slotUsed, day, 7, 3)) candidates.push_back({day, 7});
+                        if (length == 2 && canPlace(slotUsed, _day, 0, 2)) candidates.push_back({_day, 0});
+                        if (length == 3 && canPlace(slotUsed, _day, 2, 3)) candidates.push_back({_day, 2});
+                        if (length == 2 && canPlace(slotUsed, _day, 5, 2)) candidates.push_back({_day, 5});
+                        if (length == 3 && canPlace(slotUsed, _day, 7, 3)) candidates.push_back({_day, 7});
                         if (length == 1) {
-                            if (canPlace(slotUsed, day, 2, 1)) candidates.push_back({day, 2});
-                            if (canPlace(slotUsed, day, 3, 1)) candidates.push_back({day, 3});
-                            if (canPlace(slotUsed, day, 4, 1)) candidates.push_back({day, 4});
-                            if (canPlace(slotUsed, day, 7, 1)) candidates.push_back({day, 7});
-                            if (canPlace(slotUsed, day, 8, 1)) candidates.push_back({day, 8});
-                            if (canPlace(slotUsed, day, 9, 1)) candidates.push_back({day, 9});
+                            if (canPlace(slotUsed, _day, 2, 1)) candidates.push_back({_day, 2});
+                            if (canPlace(slotUsed, _day, 3, 1)) candidates.push_back({_day, 3});
+                            if (canPlace(slotUsed, _day, 4, 1)) candidates.push_back({_day, 4});
+                            if (canPlace(slotUsed, _day, 7, 1)) candidates.push_back({_day, 7});
+                            if (canPlace(slotUsed, _day, 8, 1)) candidates.push_back({_day, 8});
+                            if (canPlace(slotUsed, _day, 9, 1)) candidates.push_back({_day, 9});
                         }
                         if (candidates.empty()) {
-                            if (length == 2 && canPlace(slotUsed, day, 3, 2)) candidates.push_back({day, 3});
-                            if (length == 2 && canPlace(slotUsed, day, 7, 2)) candidates.push_back({day, 7});
-                            if (length == 3 && canPlace(slotUsed, day, 0, 3)) candidates.push_back({day, 0});
-                            if (length == 3 && canPlace(slotUsed, day, 5, 3)) candidates.push_back({day, 5});
+                            if (length == 2 && canPlace(slotUsed, _day, 3, 2)) candidates.push_back({_day, 3});
+                            if (length == 2 && canPlace(slotUsed, _day, 7, 2)) candidates.push_back({_day, 7});
+                            if (length == 3 && canPlace(slotUsed, _day, 0, 3)) candidates.push_back({_day, 0});
+                            if (length == 3 && canPlace(slotUsed, _day, 5, 3)) candidates.push_back({_day, 5});
                         }
                     }
                     if (candidates.empty()) {
