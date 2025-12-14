@@ -69,6 +69,10 @@ namespace Toposort {
                 setError("课程 " + code + "（" + name + "）的学时无效。");
                 return false;
             }
+            if (credit == 0) {
+                setError("课程 " + code + "（" + name + "）的学时不能为零。");
+                return false;
+            }
             //指定学期
             if (!getline(iss, temp2, ',')) continue;
             try { semester = stoul(temp2); } catch (...) {
@@ -106,13 +110,11 @@ namespace Toposort {
         unordered_map<string, vector<u32>> adjacencyList;
         vector<u32> inDegree(courses.size(), 0);
         for (u32 i = 0; i < courses.size(); i++) courseIndex[courses[i].code] = i;
-        for (u32 i = 0; i < courses.size(); i++) {
-            for (const auto& prereq : courses[i].prerequisites) {
-                auto it = courseIndex.find(prereq);
-                if (it != courseIndex.end()) {
-                    adjacencyList[prereq].push_back(i);
-                    inDegree[i]++;
-                }
+        for (u32 i = 0; i < courses.size(); i++) for (u32 j = 0; j < courses[i].prerequisites.size(); j++) {
+            auto it = courseIndex.find(courses[i].prerequisites[j]);
+            if (it != courseIndex.end()) {
+                adjacencyList[courses[i].prerequisites[j]].push_back(i);
+                inDegree[i]++;
             }
         }
         vector<bool> scheduled(courses.size(), false);
@@ -132,34 +134,29 @@ namespace Toposort {
                 return result;
             }
             u32 requiredCredits = 0;
-            for (u32 idx : requiredCourses) requiredCredits += courses[idx].credit;
+            for (u32 i = 0; i < requiredCourses.size(); i++) requiredCredits += courses[requiredCourses[i]].credit;
             if (requiredCredits > 50) {
                 setError("第 " + to_string(currentSemester + 1) + " 学期的必修课程学分（" + to_string(requiredCredits) + "）超过了50学分的限制。");
                 result.clear();
                 return result;
             }
-            for (u32 idx : requiredCourses) {
-                if (scheduledCount >= 50) {
-                    setError("单个学期课程数量超过了50门的限制。");
-                    result.clear();
-                    return result;
-                }
-                arrangement.push_back(courses[idx].code);
-                scheduled[idx] = true;
+            for (u32 i = 0; i < requiredCourses.size(); i++) {
+                arrangement.push_back(courses[requiredCourses[i]].code);
+                scheduled[requiredCourses[i]] = true;
                 scheduledCount++;
                 totalScheduled++;
-                totalCredits += courses[idx].credit;
-                for (u32 dependent : adjacencyList[courses[idx].code]) inDegree[dependent]--;
+                totalCredits += courses[requiredCourses[i]].credit;
+                for (const u32 dependent : adjacencyList[courses[requiredCourses[i]].code]) inDegree[dependent]--;
             }
-            for (u32 idx : availableCourses) {
+            for (u32 i = 0; i < availableCourses.size(); i++) {
                 if (scheduledCount >= limit || scheduledCount >= 50) break;
-                if (totalCredits + courses[idx].credit > 50) continue;
-                arrangement.push_back(courses[idx].code);
-                scheduled[idx] = true;
+                if (totalCredits + courses[availableCourses[i]].credit > 50) continue;
+                arrangement.push_back(courses[availableCourses[i]].code);
+                scheduled[availableCourses[i]] = true;
                 scheduledCount++;
                 totalScheduled++;
-                totalCredits += courses[idx].credit;
-                for (u32 dependent : adjacencyList[courses[idx].code]) inDegree[dependent]--;
+                totalCredits += courses[availableCourses[i]].credit;
+                for (const u32 dependent : adjacencyList[courses[availableCourses[i]].code]) inDegree[dependent]--;
             }
             if (scheduledCount > 0) result.push_back(arrangement);
         }
@@ -181,6 +178,19 @@ namespace Toposort {
         u32 credits, sessionsPerWeek;
         vector<u32> sessionLengths;
     };
+
+    [[nodiscard]] inline bool canPlace(const vector<bool>& slotUsed, u32 day, u32 startSlot, u32 length) noexcept {
+        if (startSlot + length > 10) return false;
+        for (u32 i = 0; i < length; i++) if (slotUsed[day * 10 + startSlot + i]) return false;
+        return true;
+    }
+
+    inline void place(Schedule& schedule, vector<bool>& slotUsed, u32 day, u32 startSlot, u32 length, const string& name) noexcept {
+        for (u32 i = 0; i < length; i++) {
+            schedule.slots[day][startSlot + i] = name;
+            slotUsed[day * 10 + startSlot + i] = true;
+        }
+    }
 
     [[nodiscard]] inline vector<Schedule> getSchedules(const vector<Course>& courses, const vector<vector<string>>& arrangements) noexcept {
         vector<Schedule> schedules;
@@ -227,64 +237,62 @@ namespace Toposort {
                 courseSlots.push_back(slot);
             }
             vector<bool> slotUsed(50, false);
-            auto canPlaceInSlots = [&](u32 day, u32 startSlot, u32 length) -> bool {
-                if (startSlot + length > 10) return false;
-                for (u32 i = 0; i < length; i++) if (slotUsed[day * 10 + startSlot + i]) return false;
-                return true;
-            };
-            auto placeInSlots = [&](u32 day, u32 startSlot, u32 length, const string& name) {
-                for (u32 i = 0; i < length; i++) {
-                    schedule.slots[day][startSlot + i] = name;
-                    slotUsed[day * 10 + startSlot + i] = true;
-                }
-            };
-            auto findBestSlot = [&](u32 length, const vector<u32>& usedDays) -> pair<u32, u32> {
-                vector<pair<u32, u32>> candidates;
-                for (u32 day = 0; day < 5; day++) {
-                    bool dayUsed = false;
-                    for (u32 used : usedDays) if (used == day || (used > 0 && used - 1 == day) || (used < 4 && used + 1 == day)) {
-                        dayUsed = true;
-                        break;
-                    }
-                    if (dayUsed && usedDays.size() > 0) continue;
-                    if (length == 2 && canPlaceInSlots(day, 0, 2)) candidates.push_back({day, 0});
-                    if (length == 3 && canPlaceInSlots(day, 2, 3)) candidates.push_back({day, 2});
-                    if (length == 2 && canPlaceInSlots(day, 5, 2)) candidates.push_back({day, 5});
-                    if (length == 3 && canPlaceInSlots(day, 7, 3)) candidates.push_back({day, 7});
-                    if (length == 1) {
-                        if (canPlaceInSlots(day, 2, 1)) candidates.push_back({day, 2});
-                        if (canPlaceInSlots(day, 3, 1)) candidates.push_back({day, 3});
-                        if (canPlaceInSlots(day, 4, 1)) candidates.push_back({day, 4});
-                        if (canPlaceInSlots(day, 7, 1)) candidates.push_back({day, 7});
-                        if (canPlaceInSlots(day, 8, 1)) candidates.push_back({day, 8});
-                        if (canPlaceInSlots(day, 9, 1)) candidates.push_back({day, 9});
-                    }
-                    if (candidates.empty()) {
-                        if (length == 2 && canPlaceInSlots(day, 3, 2)) candidates.push_back({day, 3});
-                        if (length == 2 && canPlaceInSlots(day, 7, 2)) candidates.push_back({day, 7});
-                        if (length == 3 && canPlaceInSlots(day, 0, 3)) candidates.push_back({day, 0});
-                        if (length == 3 && canPlaceInSlots(day, 5, 3)) candidates.push_back({day, 5});
-                    }
-                }
-                if (candidates.empty()) {
-                    for (u32 day = 0; day < 5; day++) for (u32 slot = 0; slot <= 10 - length; slot++) if (canPlaceInSlots(day, slot, length)) return {day, slot};
-                    return {5, 0};
-                }
-                pair<u32, u32> best = candidates[0];
-                for (const auto& candidate : candidates) if ((candidate.second != 0 && candidate.second != 7) && (best.second == 0 || best.second == 7)) best = candidate;
-                return best;
-            };
             for (const auto& courseSlot : courseSlots) {
                 vector<u32> usedDays;
                 for (u32 session = 0; session < courseSlot.sessionsPerWeek; session++) {
                     u32 length = courseSlot.sessionLengths[session];
-                    auto [day, startSlot] = findBestSlot(length, usedDays);
+                    u32 day = 5, startSlot = 0;
+                    vector<pair<u32, u32>> candidates;
+                    for (u32 d = 0; d < 5; d++) {
+                        bool dayUsed = false;
+                        for (u32 used : usedDays) if (used == d || (used > 0 && used - 1 == d) || (used < 4 && used + 1 == d)) {
+                            dayUsed = true;
+                            break;
+                        }
+                        if (dayUsed && usedDays.size() > 0) continue;
+                        if (length == 2 && canPlace(slotUsed, d, 0, 2)) candidates.push_back({d, 0});
+                        if (length == 3 && canPlace(slotUsed, d, 2, 3)) candidates.push_back({d, 2});
+                        if (length == 2 && canPlace(slotUsed, d, 5, 2)) candidates.push_back({d, 5});
+                        if (length == 3 && canPlace(slotUsed, d, 7, 3)) candidates.push_back({d, 7});
+                        if (length == 1) {
+                            if (canPlace(slotUsed, d, 2, 1)) candidates.push_back({d, 2});
+                            if (canPlace(slotUsed, d, 3, 1)) candidates.push_back({d, 3});
+                            if (canPlace(slotUsed, d, 4, 1)) candidates.push_back({d, 4});
+                            if (canPlace(slotUsed, d, 7, 1)) candidates.push_back({d, 7});
+                            if (canPlace(slotUsed, d, 8, 1)) candidates.push_back({d, 8});
+                            if (canPlace(slotUsed, d, 9, 1)) candidates.push_back({d, 9});
+                        }
+                        if (candidates.empty()) {
+                            if (length == 2 && canPlace(slotUsed, d, 3, 2)) candidates.push_back({d, 3});
+                            if (length == 2 && canPlace(slotUsed, d, 7, 2)) candidates.push_back({d, 7});
+                            if (length == 3 && canPlace(slotUsed, d, 0, 3)) candidates.push_back({d, 0});
+                            if (length == 3 && canPlace(slotUsed, d, 5, 3)) candidates.push_back({d, 5});
+                        }
+                    }
+                    if (candidates.empty()) {
+                        bool found = false;
+                        for (u32 d = 0; d < 5; d++) {
+                            for (u32 s = 0; s <= 10 - length; s++) if (canPlace(slotUsed, d, s, length)) {
+                                day = d;
+                                startSlot = s;
+                                found = true;
+                                break;
+                            }
+                            if (found) break;
+                        }
+                    }
+                    else {
+                        pair<u32, u32> best = candidates[0];
+                        for (const auto& candidate : candidates) if ((candidate.second != 0 && candidate.second != 7) && (best.second == 0 || best.second == 7)) best = candidate;
+                        day = best.first;
+                        startSlot = best.second;
+                    }
                     if (day >= 5) {
                         setError("无法为课程 " + courseSlot.code + " 安排足够的课时。");
                         schedules.clear();
                         return schedules;
                     }
-                    placeInSlots(day, startSlot, length, courseSlot.name);
+                    place(schedule, slotUsed, day, startSlot, length, courseSlot.name);
                     usedDays.push_back(day);
                 }
             }
